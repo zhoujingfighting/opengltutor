@@ -25,7 +25,6 @@ static auto glfw_input_callback(FpFn fpFn) {
 }
 
 struct CameraState {
-    /* glm::mat4x4 transformation; */
     glm::vec3 eye = {0, 0, 5};
     glm::vec3 lookat = {0, 0, 0};
     glm::vec3 up_vector = {0, 1, 0};
@@ -123,7 +122,6 @@ struct CameraState {
 
 struct InputCtl::Private { // P-IMPL pattern
     glm::vec2 lastpos;
-    bool curclamped = false;
     bool moving = false;
     CameraState camState;
     InputPreference camCtlPref;
@@ -133,6 +131,17 @@ struct InputCtl::Private { // P-IMPL pattern
 InputCtl::InputCtl() : m_private(std::make_unique<Private>()) {}
 
 InputCtl::~InputCtl() = default;
+
+glm::vec2 InputCtl::get_cursor_pos() {
+    double xpos, ypos;
+    glfwGetCursorPos(m_private->window, &xpos, &ypos);
+    int width, height;
+    glfwGetWindowSize(m_private->window, &width, &height);
+
+    float x = (float)(2 * xpos / width - 1);
+    float y = (float)(2 * (height - ypos) / height - 1);
+    return glm::vec2(x, y);
+}
 
 glm::mat4x4 InputCtl::get_view_matrix() {
     return m_private->camState.view_matrix();
@@ -163,10 +172,6 @@ void InputCtl::cursor_pos_callback(double xpos, double ypos) {
     float y = (float)(2 * (height - ypos) / height - 1);
     glm::vec2 pos(x, y);
 
-    int shiftPressed =
-        glfwGetKey(m_private->window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-        glfwGetKey(m_private->window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
-
     m_private->moving = true;
     auto delta = glm::fract((pos - m_private->lastpos) * 0.5f + 0.5f) * 2.0f - 1.0f;
     if (m_inputPref.orbit_binding.check_is_pressed(m_private->window)) {
@@ -184,27 +189,20 @@ void InputCtl::cursor_pos_callback(double xpos, double ypos) {
     }
     m_private->lastpos = pos;
 
-    if (m_inputPref.clamp_cursor && !m_private->curclamped && xpos >= width || ypos >= height || xpos <= 0 || ypos <= 0) {
+    if (m_private->moving && m_inputPref.clamp_cursor && (xpos >= width - 1 || ypos >= height - 1 || xpos <= 1 || ypos <= 1)) {
         // clamp mouse cursor inside the window (ZHI JING Blender)
-        xpos = std::fmod(xpos + width, width);
-        ypos = std::fmod(ypos + height, height);
+        xpos = std::fmod(xpos + width - 3, width - 2) + 1;
+        ypos = std::fmod(ypos + height - 3, height - 2) + 1;
         glfwSetCursorPos(m_private->window, xpos, ypos);
-        m_private->curclamped = true;
-    } else {
-        m_private->curclamped = false;
     }
 }
 
 void InputCtl::mouse_button_callback(int button, int action, int mods) {
-    double xpos, ypos;
-    glfwGetCursorPos(m_private->window, &xpos, &ypos);
-    int width, height;
-    glfwGetWindowSize(m_private->window, &width, &height);
+    (void)button;
+    (void)action;
+    (void)mods;
 
-    float x = (float)(2 * xpos / width - 1);
-    float y = (float)(2 * (height - ypos) / height - 1);
-    glm::vec2 pos(x, y);
-
+    auto pos = get_cursor_pos();
     m_private->lastpos = pos;
 
     m_private->moving = m_inputPref.orbit_binding.check_is_pressed(m_private->window)
@@ -236,6 +234,10 @@ void InputCtl::scroll_callback(double xoffset, double yoffset) {
 }
 
 void InputCtl::key_callback(int key, int scancode, int action, int mods) {
+    (void)key;
+    (void)scancode;
+    (void)action;
+    (void)mods;
 }
 
 void InputCtl::framebuffer_size_callback(int width, int height) {
